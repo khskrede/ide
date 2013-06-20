@@ -2,7 +2,9 @@
 
 from PySide import QtGui, QtCore
 
-class MListWidget(QtGui.QListWidget):
+class ListWidget(QtGui.QListWidget):
+
+    returnPressed = QtCore.Signal(QtGui.QListWidgetItem)
 
     def __init__(self, parent):
         QtGui.QListWidget.__init__(self, parent)
@@ -13,4 +15,7 @@ class MListWidget(QtGui.QListWidget):
         m.addAction("Diff with previous revision")
         m.exec_(pos)
 
-
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Return:
+            self.returnPressed.emit(self.currentItem())
+        QtGui.QListWidget.keyPressEvent(self, event)

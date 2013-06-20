@@ -1,11 +1,9 @@
 
 from PySide import QtGui, QtCore
 from subprocess import call
-
-from mlistwidget import MListWidget
+from widgets.mlistwidget import ListWidget
 
 class Grep(QtCore.QObject):
-
     new_grep_results = QtCore.Signal(list)
     grep_finished = QtCore.Signal()
 
@@ -36,59 +34,56 @@ class Grep(QtCore.QObject):
     def handle_grep_finished(self):
         self.grep_finished.emit()
 
-
 class GrepWidget(QtGui.QWidget):
-
-    def __init__(self, settings, parent):
-        QtGui.QWidget.__init__(self, parent)
-
+    def __init__(self, settings):
+        QtGui.QWidget.__init__(self)
+        self.settings = settings
         self.setup_ui()
-
-        self.grepping = False
-        self.grep = Grep()
-        self.grep.new_grep_results.connect(self.handle_new_results)
-        self.grep.grep_finished.connect(self.handle_grep_finished)
+        self.add_grep_functionality()
 
     def setup_ui(self):
         self.layout = QtGui.QGridLayout(self)
         self.setLayout(self.layout)
 
+        self.add_grep_input_line()
+        self.add_grep_button()
+        self.add_splitter()
+        self.add_list_for_files()
+        self.add_list_for_lines()
+    
+    def add_grep_button(self):
+        self.grep_button = QtGui.QPushButton("Grep", self)
+        self.grep_button.clicked.connect(self.grep_button_clicked)
+        self.layout.addWidget(self.grep_button, 0, 1, 1, 1)
+
+    def add_grep_input_line(self):
         self.grep_line = QtGui.QLineEdit(self)
         self.grep_line.returnPressed.connect(self.start_grep)
         self.grep_line.setText("grep -RHn ")
         self.layout.addWidget(self.grep_line, 0, 0, 1, 1)
 
-        self.grep_button = QtGui.QPushButton("Grep", self)
-        self.grep_button.clicked.connect(self.grep_button_clicked)
-        self.layout.addWidget(self.grep_button, 0, 1, 1, 1)
-
-        self.file_result = MListWidget(self)
-        self.file_result.itemDoubleClicked.connect(self.file_double_clicked)
-        self.file_result.currentItemChanged.connect(self.file_item_changed)
-
-        self.line_result = MListWidget(self)
-        self.line_result.itemDoubleClicked.connect(self.line_nr_double_clicked)
-
+    def add_splitter(self):
         self.splitter = QtGui.QSplitter(self)
-        self.splitter.addWidget(self.file_result)
-        self.splitter.addWidget(self.line_result)
         self.layout.addWidget(self.splitter, 1, 0, 1, 2)
 
-    @QtCore.Slot(list)
-    def handle_new_results(self, lines):
-        for line in lines:
-            try:
-                split_line = str(line).split(":")
-                if len(split_line) > 1:
-                    file_name = split_line[0]
-                    line_number = int(split_line[1])
-                    if not file_name in self.grep_results:
-                        self.grep_results[file_name] = []
-                        self.add_file_name(file_name)
-                    self.grep_results[file_name].append(str(line_number))
+    def add_list_for_files(self):
+        self.file_result = ListWidget(self)
+        self.file_result.itemDoubleClicked.connect(self.file_double_clicked)
+        self.file_result.returnPressed.connect(self.file_double_clicked)
+        self.file_result.currentItemChanged.connect(self.file_item_changed)
+        self.splitter.addWidget(self.file_result)
 
-            except Exception as e:
-                print("Something went wrong: " + str(e))
+    def add_list_for_lines(self):
+        self.line_result = ListWidget(self)
+        self.line_result.itemDoubleClicked.connect(self.line_nr_double_clicked)
+        self.line_result.returnPressed.connect(self.line_nr_double_clicked)
+        self.splitter.addWidget(self.line_result)
+
+    def add_grep_functionality(self):
+        self.grepping = False
+        self.grep = Grep()
+        self.grep.new_grep_results.connect(self.handle_new_results)
+        self.grep.grep_finished.connect(self.handle_grep_finished)
 
     def grep_button_clicked(self):
         if not self.grepping:
@@ -106,11 +101,6 @@ class GrepWidget(QtGui.QWidget):
 
     def stop_grep(self):
         self.grep.stop()
-
-    @QtCore.Slot()
-    def handle_grep_finished(self):
-        self.grepping = False
-        self.grep_button.setText("Grep")
 
     def add_file_name(self, file_name):
         file_info = QtCore.QFileInfo(file_name)
@@ -131,10 +121,30 @@ class GrepWidget(QtGui.QWidget):
                 print("Failed to handle line numbers: " + str(e))
 
     def file_double_clicked(self, item):
-        call(["vim", "--servername", "myIde", "--remote", item.text()])
+        self.settings.file_path_double_clicked(item.text())
 
     def line_nr_double_clicked(self, item):
-        call(["vim", "--servername", "myIde", "--remote-send", ":e " + self.file_result.currentItem().text() + "<CR>"+":"+item.text()+"<CR>"])
-        print(item.text())
+        self.settings.line_nr_double_clicked(item.text())
+
+    @QtCore.Slot(list)
+    def handle_new_results(self, lines):
+        for line in lines:
+            try:
+                split_line = str(line).split(":")
+                if len(split_line) > 1:
+                    file_name = split_line[0]
+                    line_number = int(split_line[1])
+                    if not file_name in self.grep_results:
+                        self.grep_results[file_name] = []
+                        self.add_file_name(file_name)
+                    self.grep_results[file_name].append(str(line_number))
+
+            except Exception as e:
+                print("Something went wrong: " + str(e))
+
+    @QtCore.Slot()
+    def handle_grep_finished(self):
+        self.grepping = False
+        self.grep_button.setText("Grep")
 
 

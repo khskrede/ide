@@ -2,10 +2,9 @@
 from PySide import QtGui, QtCore
 from subprocess import call
 
-from mlistwidget import MListWidget
+from widgets.mlistwidget import ListWidget
 
 class Builder(QtCore.QObject):
-
     new_build_errors = QtCore.Signal(list)
     build_finished = QtCore.Signal()
 
@@ -47,42 +46,49 @@ class Builder(QtCore.QObject):
     def handle_build_finished(self):
         self.build_finished.emit()
 
-
-
 class BuildWidget(QtGui.QWidget):
-
-    def __init__(self, settings, parent):
-        QtGui.QWidget.__init__(self, parent)
+    def __init__(self, settings):
+        QtGui.QWidget.__init__(self)
         self.setup_ui()
+        self.add_build_functionality()
+
+    def setup_ui(self):
+        self.layout = QtGui.QGridLayout(self)
+        self.setLayout(self.layout)
+        self.add_build_command_input()
+        self.add_build_button()
+        self.add_error_list()
+
+    def add_build_functionality(self):
         self.builder = Builder()
         self.builder.new_build_errors.connect(self.handle_new_errors)
 
-    def setup_ui(self):
-        layout = QtGui.QGridLayout(self)
-        self.setLayout(layout)
-
+    def add_build_command_input(self):
         self.build_command = QtGui.QLineEdit(self)
-        layout.addWidget(self.build_command,0,0,1,1)
+        self.build_command.returnPressed.connect(self.start_build)
+        self.layout.addWidget(self.build_command,0,0,1,1)
 
+    def add_build_button(self):
         self.build_button = QtGui.QPushButton("Build", self)
-        layout.addWidget(self.build_button,0,1,1,1)
-        QtCore.QObject.connect(self.build_button, QtCore.SIGNAL('clicked()'), self.build)
+        self.layout.addWidget(self.build_button,0,1,1,1)
+        QtCore.QObject.connect(self.build_button, QtCore.SIGNAL('clicked()'), self.start_build)
 
-        self.result = MListWidget(self)
-        layout.addWidget(self.result,1,0,1,2)
+    def add_error_list(self):
+        self.error_list = ListWidget(self)
+        self.layout.addWidget(self.error_list,1,0,1,2)
+
+    @QtCore.Slot(list)
+    def start_build(self):
+        self.error_list.clear()
+        build_cmd = self.build_command.text()
+        headline = "Starting build: " + build_cmd
+        print("\n" + headline)
+        print("="*len(headline)+"\n")
+        self.builder.build(build_cmd)
 
     @QtCore.Slot(list)
     def handle_new_errors(self, lines):
         print("STDERR")
         for line in lines:
-            self.result.addItem(line)
-
-    def build(self):
-        build_cmd = self.build_command.text()
-        headline = "Starting build: " + build_cmd
-        print("")
-        print(headline)
-        print("="*len(headline))
-        print("")
-        self.builder.build(build_cmd)
+            self.error_list.addItem(line)
 
